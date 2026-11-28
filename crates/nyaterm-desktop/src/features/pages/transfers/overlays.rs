@@ -11,7 +11,10 @@ use crate::features::NyaTermApp;
 use crate::models::{TransferJobKind, TransferJobMenuState, TransferJobStatus};
 use crate::theme::ThemePalette;
 
-use super::{transfer_job_can_retry, transfer_job_has_local_target, transfer_menu_position};
+use super::{
+    menu_input_boundary, transfer_job_can_retry, transfer_job_has_local_target,
+    transfer_menu_position,
+};
 
 impl NyaTermApp {
     pub(in crate::features) fn transfer_job_menu_overlay(
@@ -84,98 +87,100 @@ impl NyaTermApp {
             .left_0()
             .right_0()
             .on_click(cx.listener(|this, _, _, cx| {
+                cx.stop_propagation();
                 this.close_transfer_job_menu(cx);
             }))
             .child(
-                div()
-                    .id(SharedString::from("transfer-job-menu"))
-                    .absolute()
-                    .top(px(menu_y))
-                    .left(px(menu_x))
-                    .w(px(190.))
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(palette.border))
-                    .bg(self.shell_surface_color(palette.bg))
-                    .shadow_lg()
-                    .on_click(|_, _, cx| cx.stop_propagation())
-                    .child(
-                        div()
-                            .max_h(px(menu_max_height))
-                            .overflow_y_scrollbar()
-                            .p_1()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .when(pause_supported, |menu| {
-                                menu.child(transfer_job_menu_button(
-                                    palette,
-                                    "transfer-job-menu-pause",
-                                    t!("fileTransfer.pause"),
-                                    can_pause,
-                                    cx.listener(move |this, _, _, cx| {
-                                        this.transfer.close_transfer_job_menu();
-                                        this.pause_transfer_job(&pause_id, cx);
-                                        this.defer_transfer_panel_snapshot_flush(cx);
-                                    }),
-                                ))
-                                .child(transfer_job_menu_button(
-                                    palette,
-                                    "transfer-job-menu-resume",
-                                    t!("fileTransfer.resume"),
-                                    can_resume,
-                                    cx.listener(move |this, _, _, cx| {
-                                        this.transfer.close_transfer_job_menu();
-                                        this.resume_transfer_job(&resume_id, cx);
-                                        this.defer_transfer_panel_snapshot_flush(cx);
-                                    }),
-                                ))
-                            })
-                            .child(transfer_job_menu_button(
+                menu_input_boundary(
+                    div()
+                        .id(SharedString::from("transfer-job-menu"))
+                        .absolute()
+                        .top(px(menu_y))
+                        .left(px(menu_x))
+                        .w(px(190.))
+                        .rounded_md()
+                        .border_1()
+                        .border_color(rgb(palette.border))
+                        .bg(self.shell_surface_color(palette.bg))
+                        .shadow_lg(),
+                )
+                .child(
+                    div()
+                        .max_h(px(menu_max_height))
+                        .overflow_y_scrollbar()
+                        .p_1()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .when(pause_supported, |menu| {
+                            menu.child(transfer_job_menu_button(
                                 palette,
-                                "transfer-job-menu-retry",
-                                t!("fileTransfer.retry"),
-                                can_retry,
-                                cx.listener(move |this, _, window, cx| {
+                                "transfer-job-menu-pause",
+                                t!("fileTransfer.pause"),
+                                can_pause,
+                                cx.listener(move |this, _, _, cx| {
                                     this.transfer.close_transfer_job_menu();
-                                    this.retry_transfer_job(retry_id.clone(), window, cx);
+                                    this.pause_transfer_job(&pause_id, cx);
                                     this.defer_transfer_panel_snapshot_flush(cx);
                                 }),
                             ))
                             .child(transfer_job_menu_button(
                                 palette,
-                                "transfer-job-menu-cancel",
-                                t!("fileTransfer.cancel"),
-                                can_cancel,
+                                "transfer-job-menu-resume",
+                                t!("fileTransfer.resume"),
+                                can_resume,
                                 cx.listener(move |this, _, _, cx| {
                                     this.transfer.close_transfer_job_menu();
-                                    this.cancel_transfer_job(&cancel_id, cx);
+                                    this.resume_transfer_job(&resume_id, cx);
                                     this.defer_transfer_panel_snapshot_flush(cx);
                                 }),
                             ))
-                            .child(div().h(px(1.)).mx_1().my_1().bg(rgb(palette.border)))
-                            .child(transfer_job_menu_button(
-                                palette,
-                                "transfer-job-menu-open-target",
-                                t!("fileTransfer.openTargetDirectory"),
-                                can_open_target,
-                                cx.listener(move |this, _, _, cx| {
-                                    this.transfer.close_transfer_job_menu();
-                                    this.reveal_transfer_job_target_directory(open_id.clone(), cx);
-                                }),
-                            ))
-                            .child(div().h(px(1.)).mx_1().my_1().bg(rgb(palette.border)))
-                            .child(transfer_job_menu_button(
-                                palette,
-                                "transfer-job-menu-delete",
-                                t!("fileTransfer.delete"),
-                                can_delete,
-                                cx.listener(move |this, _, window, cx| {
-                                    this.transfer.close_transfer_job_menu();
-                                    this.request_delete_transfer_job(delete_id.clone(), window, cx);
-                                }),
-                            )),
-                    ),
+                        })
+                        .child(transfer_job_menu_button(
+                            palette,
+                            "transfer-job-menu-retry",
+                            t!("fileTransfer.retry"),
+                            can_retry,
+                            cx.listener(move |this, _, window, cx| {
+                                this.transfer.close_transfer_job_menu();
+                                this.retry_transfer_job(retry_id.clone(), window, cx);
+                                this.defer_transfer_panel_snapshot_flush(cx);
+                            }),
+                        ))
+                        .child(transfer_job_menu_button(
+                            palette,
+                            "transfer-job-menu-cancel",
+                            t!("fileTransfer.cancel"),
+                            can_cancel,
+                            cx.listener(move |this, _, _, cx| {
+                                this.transfer.close_transfer_job_menu();
+                                this.cancel_transfer_job(&cancel_id, cx);
+                                this.defer_transfer_panel_snapshot_flush(cx);
+                            }),
+                        ))
+                        .child(div().h(px(1.)).mx_1().my_1().bg(rgb(palette.border)))
+                        .child(transfer_job_menu_button(
+                            palette,
+                            "transfer-job-menu-open-target",
+                            t!("fileTransfer.openTargetDirectory"),
+                            can_open_target,
+                            cx.listener(move |this, _, _, cx| {
+                                this.transfer.close_transfer_job_menu();
+                                this.reveal_transfer_job_target_directory(open_id.clone(), cx);
+                            }),
+                        ))
+                        .child(div().h(px(1.)).mx_1().my_1().bg(rgb(palette.border)))
+                        .child(transfer_job_menu_button(
+                            palette,
+                            "transfer-job-menu-delete",
+                            t!("fileTransfer.delete"),
+                            can_delete,
+                            cx.listener(move |this, _, window, cx| {
+                                this.transfer.close_transfer_job_menu();
+                                this.request_delete_transfer_job(delete_id.clone(), window, cx);
+                            }),
+                        )),
+                ),
             )
     }
 }
