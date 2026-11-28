@@ -21,8 +21,8 @@ fn tab_menu_icon(id: &str) -> Option<&'static str> {
         "tab-ctx-reconnect" => Some("icons/session/reconnect.svg"),
         "tab-ctx-disconnect" => Some("icons/session/disconnect.svg"),
         "tab-ctx-rdp-secure-attention" => Some("icons/security.svg"),
-        "tab-ctx-rdp-fullscreen" => Some("icons/window/maximize.svg"),
-        "tab-ctx-rdp-exit-fullscreen" => Some("icons/menu/close-fullscreen.svg"),
+        "tab-ctx-rdp-fullscreen" => Some("icons/session/fullscreen.svg"),
+        "tab-ctx-rdp-exit-fullscreen" => Some("icons/session/exit-fullscreen.svg"),
         "tab-ctx-split-h" | "tab-ctx-window-below" | "tab-ctx-tile-h" => {
             Some("icons/menu/horizontal.svg")
         }

@@ -47,7 +47,7 @@ impl NyaTermApp {
                     SessionToolbarAction::Reconnect => t!("tabCtx.reconnect"),
                 };
                 let mut item = TitleMenuDefinition::action(label)
-                    .icon(action.icon())
+                    .icon(action.icon(context.fullscreen_active))
                     .disabled(!enabled)
                     .command(TitleMenuCommand::SessionToolbarAction {
                         session_id: id.to_string(),
@@ -111,15 +111,18 @@ impl NyaTermApp {
                 };
                 let target = id.to_string();
                 buttons = buttons.child(
-                    NyaIconButton::new(format!("session-toolbar-{action:?}"), action.icon())
-                        .size(px(26.))
-                        .icon_size(px(14.))
-                        .disabled(!enabled)
-                        .tooltip(tooltip)
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            cx.stop_propagation();
-                            this.execute_session_toolbar_action(&target, action, window, cx);
-                        })),
+                    NyaIconButton::new(
+                        format!("session-toolbar-{action:?}"),
+                        action.icon(context.fullscreen_active),
+                    )
+                    .size(px(26.))
+                    .icon_size(px(14.))
+                    .disabled(!enabled)
+                    .tooltip(tooltip)
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        cx.stop_propagation();
+                        this.execute_session_toolbar_action(&target, action, window, cx);
+                    })),
                 );
             }
         }
@@ -128,9 +131,10 @@ impl NyaTermApp {
 }
 
 impl SessionToolbarAction {
-    fn icon(self) -> &'static str {
+    fn icon(self, fullscreen_active: bool) -> &'static str {
         match self {
-            Self::Fullscreen => "icons/window/maximize.svg",
+            Self::Fullscreen if fullscreen_active => "icons/session/exit-fullscreen.svg",
+            Self::Fullscreen => "icons/session/fullscreen.svg",
             Self::Reconnect => "icons/fe/refresh.svg",
         }
     }
