@@ -23,6 +23,7 @@ pub(super) struct TerminalEditingState {
 
 #[derive(Default)]
 pub(super) struct SessionEditingState {
+    pub(super) history_search: Option<super::history_search::HistorySearchRecovery>,
     // Survives snapshot reconciliation: recovering a history line is not typing.
     pub(super) browsing_history: bool,
     pub(super) command_navigation: super::navigation_input::CommandNavigationInputState,
@@ -72,6 +73,10 @@ pub(super) struct SnapshotEvidence {
 }
 
 impl SnapshotEvidence {
+    pub(super) fn same_content(&self, other: &Self) -> bool {
+        self.anchor == other.anchor && self.rows == other.rows
+    }
+
     pub(super) fn from_snapshot(snapshot: &TerminalSnapshot) -> Self {
         Self {
             cursor: (snapshot.cursor.row, snapshot.cursor.col),
@@ -178,6 +183,7 @@ impl SessionEditingState {
     }
 
     pub(super) fn invalidate(&mut self) {
+        self.history_search = None;
         self.suggestion_fill = None;
         self.model.invalidate();
         self.capability = EditCapability::None;
@@ -194,6 +200,7 @@ impl TerminalEditingState {
     fn clear_free_type_interactions(&mut self) {
         // Retain sent edits and their echo confirmation; only retire unsent gestures.
         for state in self.sessions.values_mut() {
+            state.history_search = None;
             state.model.queued_cursor = None;
             state.selection_origin_version = None;
             state.selection = None;

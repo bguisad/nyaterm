@@ -619,7 +619,7 @@ impl NyaTermApp {
         if let Some(id) = self.session.active_id_owned() {
             self.reconcile_shell_editing(&id, cx);
         }
-        self.commit_smart_input_selection();
+        self.commit_smart_input_selection(cx);
         if self.finish_terminal_mouse_report(event, cx) {
             self.clear_terminal_selection(cx);
             return;
@@ -675,7 +675,7 @@ impl NyaTermApp {
         self.terminal.selection.dragging = false;
         self.terminal.selection.block_gesture = None;
         self.terminal.selection.drag_pointer_position = None;
-        self.commit_smart_input_selection();
+        self.commit_smart_input_selection(cx);
         if self
             .terminal
             .selection

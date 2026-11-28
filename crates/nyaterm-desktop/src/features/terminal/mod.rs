@@ -10,6 +10,7 @@ mod credential_autofill;
 mod editing_payload;
 mod editing_runtime;
 mod editing_state;
+mod history_search;
 mod ime_state;
 mod input_runtime;
 pub(in crate::features) mod keyword_highlight_popup;

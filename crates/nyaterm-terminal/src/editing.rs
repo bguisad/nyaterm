@@ -6,6 +6,8 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{ShellInputAnchor, TerminalLineId, TerminalSnapshot};
 
+pub mod history_search;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InputCell {
     pub row: usize,
@@ -155,6 +157,15 @@ pub fn resolve_input(
     value: &str,
     cursor: usize,
 ) -> Option<InputMapping> {
+    resolve_input_at(snapshot, value, cursor, snapshot.shell_input_anchor)
+}
+
+fn resolve_input_at(
+    snapshot: &TerminalSnapshot,
+    value: &str,
+    cursor: usize,
+    boundary: Option<ShellInputAnchor>,
+) -> Option<InputMapping> {
     if !value.is_char_boundary(cursor)
         || value.contains(['\r', '\n'])
         || !value
@@ -165,7 +176,7 @@ pub fn resolve_input(
         return None;
     }
     let range = chain(snapshot)?;
-    let mapping = if let Some(anchor) = snapshot.shell_input_anchor {
+    let mapping = if let Some(anchor) = boundary {
         let row = snapshot
             .rows()
             .iter()
@@ -249,7 +260,19 @@ pub fn recover_marked_input(
     snapshot: &TerminalSnapshot,
     max_bytes: usize,
 ) -> Option<(String, usize)> {
+    if history_search::is_readline_search_display(snapshot) {
+        return None;
+    }
     let anchor = snapshot.shell_input_anchor?;
+    recover_input_at(snapshot, anchor, max_bytes, true)
+}
+
+fn recover_input_at(
+    snapshot: &TerminalSnapshot,
+    anchor: ShellInputAnchor,
+    max_bytes: usize,
+    require_end: bool,
+) -> Option<(String, usize)> {
     let range = chain(snapshot)?;
     let start = snapshot
         .rows()
@@ -258,7 +281,7 @@ pub fn recover_marked_input(
     if !range.contains(&start) {
         return None;
     }
-    let mut value = String::new();
+    let mut value = zeroize::Zeroizing::new(String::new());
     let mut cursor = None;
     for row in start..range.end {
         let row_data = snapshot.row(row)?;
@@ -280,7 +303,10 @@ pub fn recover_marked_input(
         // With an unknown buffer there is no evidence for invisible trailing
         // spaces after a cursor in the middle. Recover only at the visible end;
         // known complete buffers still support editing at any cursor position.
-        if row + 1 == range.end && (row != snapshot.cursor.row || col_end > snapshot.cursor.col) {
+        if require_end
+            && row + 1 == range.end
+            && (row != snapshot.cursor.row || col_end > snapshot.cursor.col)
+        {
             return None;
         }
         for col in col_start..col_end {
@@ -304,8 +330,8 @@ pub fn recover_marked_input(
         }
     }
     let cursor = cursor?;
-    resolve_input(snapshot, &value, cursor)?;
-    Some((value, cursor))
+    resolve_input_at(snapshot, &value, cursor, Some(anchor))?;
+    Some((std::mem::take(&mut *value), cursor))
 }
 
 #[cfg(test)]

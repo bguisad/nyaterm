@@ -11,6 +11,7 @@ use super::metrics::{
 use crate::features::NyaTermApp;
 use crate::features::terminal::editing_payload::shell_edit_payload;
 use crate::features::terminal::editing_state::SnapshotEvidence;
+use crate::features::terminal::history_search::HistorySearchGesture;
 use crate::features::terminal::terminal_surface::terminal_absolute_line_for_snapshot_row;
 use crate::models::{TerminalBufferCellPos, TerminalSelection};
 
@@ -51,6 +52,31 @@ impl NyaTermApp {
         }
         if let Some(id) = self.session.active_id_owned() {
             self.reconcile_shell_editing(&id, cx);
+        }
+        if self.history_search_ready_for_gesture()
+            && let Some(geometry) =
+                self.terminal_hit_test_geometry_for_session(self.session.active_id(), cx)
+            && geometry.display_offset == 0
+        {
+            let current = self.terminal_snapshot_for_session(self.session.active_id(), 0);
+            if SnapshotEvidence::from_snapshot(&geometry.snapshot)
+                != SnapshotEvidence::from_snapshot(&current)
+            {
+                return;
+            }
+            let cell = terminal_cell_for_visual_geometry(event.position, &geometry);
+            let row = terminal_snapshot_row_for_visual_geometry(event.position, &geometry);
+            if let Some(line) = geometry.snapshot.row(row).and_then(|row| row.line_id)
+                && self.start_history_search_gesture(
+                    HistorySearchGesture::Move {
+                        line,
+                        col: cell.col,
+                    },
+                    cx,
+                )
+            {
+                return;
+            }
         }
         if let Some(target) = self.input_index_at_mouse(event.position, cx) {
             self.move_smart_input_cursor(target, cx);
@@ -150,14 +176,30 @@ impl NyaTermApp {
 
     pub(in crate::features) fn begin_smart_input_selection(&mut self) {
         let eligible = self.can_use_smart_cursor_selection();
+        let recovering = self.history_search_ready_for_gesture();
         let state = self.terminal.editing.state_mut();
         state.model.queued_cursor = None;
-        state.selection_origin_version =
-            (eligible && state.model.phase == EditPhase::Ready).then_some(state.model.version);
+        state.selection_origin_version = ((eligible && state.model.phase == EditPhase::Ready)
+            || recovering)
+            .then_some(state.model.version);
         state.selection = None;
     }
 
-    pub(in crate::features) fn commit_smart_input_selection(&mut self) {
+    pub(in crate::features) fn commit_smart_input_selection(&mut self, cx: &mut Context<Self>) {
+        if self.history_search_ready_for_gesture()
+            && !self.terminal.selection.dragging
+            && self.terminal.selection.session_id.as_deref() == self.session.active_id()
+            && self
+                .terminal
+                .editing
+                .state()
+                .is_some_and(|state| state.selection_origin_version == Some(state.model.version))
+            && let Some(selection) = self.terminal.selection.selection
+            && !selection.is_empty()
+        {
+            self.start_history_search_gesture(HistorySearchGesture::Select(selection), cx);
+            return;
+        }
         if !self.can_use_smart_cursor_selection() {
             return;
         }

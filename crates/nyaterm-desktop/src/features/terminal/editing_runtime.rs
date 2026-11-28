@@ -86,10 +86,15 @@ impl NyaTermApp {
         if text.is_empty() {
             return;
         }
+        let snapshot = self.terminal_snapshot_for_session(Some(&id), 0);
+        self.note_history_search_input(text, &snapshot);
         self.terminal
             .editing
             .state_mut()
             .note_suggestion_input(text);
+        if self.terminal.editing.state_mut().history_search.is_some() {
+            self.terminal.editing.state_mut().browsing_history = true;
+        }
         if self
             .terminal
             .editing
@@ -165,6 +170,15 @@ impl NyaTermApp {
             state.submitted_anchor = snapshot.shell_input_anchor;
         }
         state.model.note_input(text, Instant::now());
+        if state.history_search.is_some() {
+            state.model.input.value.zeroize();
+            state.model.input = TerminalInputState {
+                desynced: true,
+                desync_reason: Some("history_search"),
+                ..TerminalInputState::default()
+            };
+            state.model.invalidate();
+        }
         state.pending_evidence = Some(SnapshotEvidence::from_snapshot(&snapshot));
         state.selection = None;
         state.selection_origin_version = None;
@@ -369,8 +383,13 @@ impl NyaTermApp {
             state.mapping = None;
             state.selection = None;
         }
+        if self.reconcile_history_search(&snapshot, cx) {
+            return;
+        }
+        let state = self.terminal.editing.state_mut();
         let input = &state.model.input;
-        if state.model.phase == EditPhase::Pending
+        if (state.model.phase == EditPhase::Pending
+            || state.model.input.desync_reason == Some("history_search"))
             && state.pending_evidence.as_ref() == Some(&SnapshotEvidence::from_snapshot(&snapshot))
         {
             return;
@@ -997,7 +1016,7 @@ mod tests {
                     mode: nyaterm_terminal::selection::TerminalSelectionMode::Linear,
                 });
                 app.begin_smart_input_selection();
-                app.commit_smart_input_selection();
+                app.commit_smart_input_selection(cx);
                 let range = app.smart_cursor_selected_input_range();
                 assert_eq!(
                     range.as_ref().map(|range| (range.start, range.end)),
@@ -1185,7 +1204,7 @@ mod tests {
                 mode: nyaterm_terminal::selection::TerminalSelectionMode::Linear,
             });
             app.begin_smart_input_selection();
-            app.commit_smart_input_selection();
+            app.commit_smart_input_selection(cx);
             assert!(app.smart_cursor_selected_input_range().is_some());
         });
         let (_, vcx) = cx.add_window_view(|_, _| InputHost);
@@ -1369,7 +1388,7 @@ mod tests {
                 TerminalBufferCellPos::new(0, 3),
             ));
             app.begin_smart_input_selection();
-            app.commit_smart_input_selection();
+            app.commit_smart_input_selection(cx);
             assert!(app.smart_cursor_selected_input_range().is_some());
             app.note_shell_editing_input(b"d", cx);
             assert!(app.smart_cursor_selected_input_range().is_none());
@@ -1377,7 +1396,7 @@ mod tests {
             app.terminal
                 .seed_session_view("s1".into(), "$ abcd".into(), "UTF-8");
             app.reconcile_shell_editing("s1", cx);
-            app.commit_smart_input_selection();
+            app.commit_smart_input_selection(cx);
             assert!(app.smart_cursor_selected_input_range().is_none());
         });
     }
@@ -1427,7 +1446,7 @@ mod tests {
             app.terminal.selection.session_id = Some("s1".into());
             app.terminal.selection.selection = Some(selection);
             app.begin_smart_input_selection();
-            app.commit_smart_input_selection();
+            app.commit_smart_input_selection(cx);
             let range = app.smart_cursor_selected_input_range().unwrap();
             app.begin_settings_draft(cx);
             app.toggle_interaction_free_type(cx);
