@@ -1,3 +1,4 @@
+use super::menu_input::menu_input_boundary;
 use rust_i18n::t;
 
 use gpui::{
@@ -11,7 +12,7 @@ use crate::features::NyaTermApp;
 use crate::models::{TransferBrowserUploadMenuState, TransferPathPromptKind};
 use crate::theme::ThemePalette;
 
-use super::{menu_input_boundary, transfer_menu_position};
+use super::transfer_menu_position;
 
 impl NyaTermApp {
     pub(in crate::features::pages::transfers) fn open_transfer_browser_upload_menu(
@@ -73,6 +74,7 @@ impl NyaTermApp {
                 menu_input_boundary(
                     div()
                         .id(SharedString::from("transfer-browser-upload-menu"))
+                        .debug_selector(|| "transfer-browser-upload-menu".to_string())
                         .absolute()
                         .top(px(menu_y))
                         .left(px(menu_x))
@@ -142,8 +144,10 @@ fn upload_menu_item(
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let label: SharedString = label.into();
+    let id = SharedString::from(id.into());
     div()
-        .id(SharedString::from(id.into()))
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
         .h(px(30.))
         .px_2()
         .mx_1()

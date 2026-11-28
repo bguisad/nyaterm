@@ -1,4 +1,5 @@
 use super::helpers::{normalized_transfer_browser_path, remote_child_path};
+use super::menu_input::menu_input_boundary;
 use super::panel::TransferPanel;
 use super::{TransferPathPart, transfer_menu_position};
 use crate::features::{NyaTermApp, text_inputs::TextInputSetup};
@@ -538,41 +539,35 @@ impl NyaTermApp {
                 this.close_transfer_browser_path_menu(cx);
             }))
             .child(
-                div()
-                    .id(SharedString::from("transfer-browser-path-menu"))
-                    .debug_selector(|| "transfer-browser-path-menu".to_string())
-                    .absolute()
-                    .top(px(menu_y))
-                    .left(px(menu_x))
-                    .w(px(menu_width))
-                    .h(px(menu_height))
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(palette.border))
-                    .bg(self.shell_surface_color(palette.bg))
-                    .shadow_lg()
-                    .font(font)
-                    .occlude()
-                    .on_any_mouse_down(|_, _, cx| cx.stop_propagation())
-                    .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_mouse_up(MouseButton::Middle, |_, _, cx| cx.stop_propagation())
-                    .on_mouse_up(MouseButton::Right, |_, _, cx| cx.stop_propagation())
-                    .on_mouse_move(|_, _, cx| cx.stop_propagation())
-                    .on_scroll(|_, _, cx| cx.stop_propagation())
-                    .on_click(|_, _, cx| cx.stop_propagation())
-                    .child(
-                        div()
-                            .id("transfer-browser-path-menu-scroll")
-                            .debug_selector(|| "transfer-browser-path-menu-scroll".to_string())
-                            .h_full()
-                            .w_full()
-                            .overflow_y_scroll()
-                            .track_scroll(&scroll)
-                            .p(px(padding))
-                            .pr(px(padding + scrollbar_clearance))
-                            .child(content),
-                    )
-                    .vertical_scrollbar(&scroll),
+                menu_input_boundary(
+                    div()
+                        .id(SharedString::from("transfer-browser-path-menu"))
+                        .debug_selector(|| "transfer-browser-path-menu".to_string())
+                        .absolute()
+                        .top(px(menu_y))
+                        .left(px(menu_x))
+                        .w(px(menu_width))
+                        .h(px(menu_height))
+                        .rounded_md()
+                        .border_1()
+                        .border_color(rgb(palette.border))
+                        .bg(self.shell_surface_color(palette.bg))
+                        .shadow_lg()
+                        .font(font),
+                )
+                .child(
+                    div()
+                        .id("transfer-browser-path-menu-scroll")
+                        .debug_selector(|| "transfer-browser-path-menu-scroll".to_string())
+                        .h_full()
+                        .w_full()
+                        .overflow_y_scroll()
+                        .track_scroll(&scroll)
+                        .p(px(padding))
+                        .pr(px(padding + scrollbar_clearance))
+                        .child(content),
+                )
+                .vertical_scrollbar(&scroll),
             )
     }
 

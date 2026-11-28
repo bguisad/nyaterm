@@ -1,3 +1,4 @@
+use super::menu_input::menu_input_boundary;
 use rust_i18n::t;
 
 use gpui::{
@@ -11,10 +12,7 @@ use crate::features::NyaTermApp;
 use crate::models::{TransferJobKind, TransferJobMenuState, TransferJobStatus};
 use crate::theme::ThemePalette;
 
-use super::{
-    menu_input_boundary, transfer_job_can_retry, transfer_job_has_local_target,
-    transfer_menu_position,
-};
+use super::{transfer_job_can_retry, transfer_job_has_local_target, transfer_menu_position};
 
 impl NyaTermApp {
     pub(in crate::features) fn transfer_job_menu_overlay(
@@ -94,6 +92,7 @@ impl NyaTermApp {
                 menu_input_boundary(
                     div()
                         .id(SharedString::from("transfer-job-menu"))
+                        .debug_selector(|| "transfer-job-menu".to_string())
                         .absolute()
                         .top(px(menu_y))
                         .left(px(menu_x))

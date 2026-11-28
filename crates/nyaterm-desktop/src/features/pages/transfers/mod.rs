@@ -1,7 +1,5 @@
 mod path_completion;
-use gpui::{
-    Context, IntoElement, MouseButton, StatefulInteractiveElement as _, div, prelude::*, px,
-};
+use gpui::{Context, IntoElement, div, prelude::*, px};
 
 use self::browser::transfer_browser_view;
 use self::panel::TransferPanel;
@@ -23,6 +21,7 @@ pub(in crate::features) mod file_ops;
 mod flush;
 mod forms;
 mod helpers;
+mod menu_input;
 mod overlays;
 mod overlays_context;
 mod overlays_delete_move;
@@ -97,28 +96,6 @@ fn transfer_menu_position(
     (x.clamp(margin, max_x), y.clamp(margin, max_y), max_height)
 }
 
-/// Seals a floating menu surface against the elements painted beneath it.
-///
-/// GPUI hitboxes do not implicitly occlude hitboxes behind them, so a menu
-/// drawn over the path bar or the transfer list must own its pointer input:
-/// otherwise a mouse-down that opens a menu item also reaches the underlying
-/// `on_mouse_down` control (for example the breadcrumb children button), which
-/// opens a second, unrelated menu. Keep this in sync with the path menu surface
-/// in `path_bar.rs`.
-pub(in crate::features::pages::transfers) fn menu_input_boundary(
-    surface: gpui::Stateful<gpui::Div>,
-) -> gpui::Stateful<gpui::Div> {
-    surface
-        .occlude()
-        .on_any_mouse_down(|_, _, cx| cx.stop_propagation())
-        .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .on_mouse_up(MouseButton::Middle, |_, _, cx| cx.stop_propagation())
-        .on_mouse_up(MouseButton::Right, |_, _, cx| cx.stop_propagation())
-        .on_mouse_move(|_, _, cx| cx.stop_propagation())
-        .on_scroll(|_, _, cx| cx.stop_propagation())
-        .on_click(|_, _, cx| cx.stop_propagation())
-}
-
 /// The transfers panel body.
 ///
 /// Takes no `NyaTermApp`. GPUI records every entity read during a draw, so an app
@@ -169,96 +146,10 @@ pub(in crate::features::pages::transfers) fn transfer_panel(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use gpui::{
-        Context, InteractiveElement as _, IntoElement, Modifiers, MouseButton, ParentElement as _,
-        Render, Styled as _, TestAppContext, VisualTestContext, Window, div, px,
-    };
-
     use super::{
-        TransferBrowserAvailability, menu_input_boundary, transfer_browser_availability,
-        transfer_dialog_width, transfer_menu_position,
+        TransferBrowserAvailability, transfer_browser_availability, transfer_dialog_width,
+        transfer_menu_position,
     };
-
-    struct MenuBoundaryFixture {
-        beneath_mouse_downs: Arc<AtomicUsize>,
-        sealed: bool,
-    }
-
-    impl Render for MenuBoundaryFixture {
-        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-            let beneath = self.beneath_mouse_downs.clone();
-            let surface = div()
-                .id("floating-menu")
-                .absolute()
-                .top(px(20.))
-                .left(px(20.))
-                .w(px(180.))
-                .h(px(100.))
-                .debug_selector(|| "floating-menu".to_string());
-            let surface = if self.sealed {
-                menu_input_boundary(surface)
-            } else {
-                surface
-            };
-            div()
-                .size_full()
-                .relative()
-                .child(
-                    div()
-                        .id("beneath-breadcrumb-chevron")
-                        .absolute()
-                        .top(px(20.))
-                        .left(px(20.))
-                        .w(px(200.))
-                        .h(px(120.))
-                        .debug_selector(|| "beneath-breadcrumb-chevron".to_string())
-                        .on_mouse_down(MouseButton::Left, move |_, _, _| {
-                            beneath.fetch_add(1, Ordering::SeqCst);
-                        }),
-                )
-                .child(surface.child(div().id("menu-item").w_full().h(px(30.))))
-        }
-    }
-
-    fn click_floating_menu(cx: &mut TestAppContext, sealed: bool) -> usize {
-        let beneath_mouse_downs = Arc::new(AtomicUsize::new(0));
-        let fixture = MenuBoundaryFixture {
-            beneath_mouse_downs: beneath_mouse_downs.clone(),
-            sealed,
-        };
-        let (_, cx) = cx.add_window_view(|_, _| fixture);
-        let cx: &mut VisualTestContext = cx;
-        cx.run_until_parked();
-        cx.update(|window, cx| {
-            _ = window.draw(cx);
-        });
-
-        let menu = cx.debug_bounds("floating-menu").unwrap();
-        cx.simulate_mouse_down(menu.center(), MouseButton::Left, Modifiers::default());
-        cx.simulate_mouse_up(menu.center(), MouseButton::Left, Modifiers::default());
-        beneath_mouse_downs.load(Ordering::SeqCst)
-    }
-
-    #[gpui::test]
-    fn floating_menu_does_not_leak_mouse_down_to_control_beneath(cx: &mut TestAppContext) {
-        assert_eq!(
-            click_floating_menu(cx, true),
-            0,
-            "mouse-down on the sealed floating menu must not reach the control painted beneath it"
-        );
-    }
-
-    #[gpui::test]
-    fn unsealed_floating_menu_does_leak_mouse_down_to_control_beneath(cx: &mut TestAppContext) {
-        assert_eq!(
-            click_floating_menu(cx, false),
-            1,
-            "without an input boundary the control beneath must receive the mouse-down"
-        );
-    }
 
     #[test]
     fn browser_availability_distinguishes_session_states() {
