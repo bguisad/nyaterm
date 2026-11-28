@@ -292,6 +292,37 @@ mod tests {
                         .into_any_element()
                     })
                 });
+            let upload_overlay = self
+                .app
+                .read(cx)
+                .transfer
+                .browser_view()
+                .upload_menu
+                .is_some()
+                .then(|| {
+                    self.app.update(cx, |app, cx| {
+                        crate::features::view_widgets::full_window_overlay_layer(
+                            "transfer-upload-menu-input-layer",
+                            app.transfer_browser_upload_menu_overlay(cx),
+                        )
+                        .into_any_element()
+                    })
+                });
+            let job_overlay = self
+                .app
+                .read(cx)
+                .transfer
+                .transfer_job_menu()
+                .is_some()
+                .then(|| {
+                    self.app.update(cx, |app, cx| {
+                        crate::features::view_widgets::full_window_overlay_layer(
+                            "transfer-job-menu-input-layer",
+                            app.transfer_job_menu_overlay(cx),
+                        )
+                        .into_any_element()
+                    })
+                });
             div()
                 .relative()
                 .w(px(320.))
@@ -309,6 +340,8 @@ mod tests {
                 )
                 .children(overlay)
                 .children(favorites_overlay)
+                .children(upload_overlay)
+                .children(job_overlay)
         }
     }
 
@@ -317,6 +350,13 @@ mod tests {
         root: &Path,
     ) -> (Entity<NyaTermApp>, &'a mut VisualTestContext) {
         let app = app(cx, root);
+        host_app(cx, app)
+    }
+
+    fn host_app(
+        cx: &mut TestAppContext,
+        app: Entity<NyaTermApp>,
+    ) -> (Entity<NyaTermApp>, &mut VisualTestContext) {
         cx.update_entity(&app, |app, cx| {
             app.sync_component_theme(cx);
             app.open_or_toggle_panel(NavItem::Transfers, cx);
@@ -1832,6 +1872,188 @@ mod tests {
                 Some(entries[4].path.as_str())
             );
         });
+    }
+
+    #[test]
+    fn upload_menu_items_open_the_matching_picker_and_close_the_menu() {
+        use crate::models::{TransferBrowserUploadMenuState, TransferPathPromptKind};
+        let test_dir = TestConfigDir::new("nyaterm-upload-menu-actions");
+        let mut cx = TestAppContext::single();
+        let _test_app_cleanup = crate::test_support::TestAppCleanup::new(&cx);
+        let app = crate::features::test_support::app_with_visible_android_session(
+            &mut cx,
+            test_dir.path(),
+            "upload-test",
+            "/device",
+        );
+        let (app, vcx) = host_app(&mut cx, app);
+        for (selector, kind) in [
+            (
+                "transfer-browser-upload-menu-files",
+                TransferPathPromptKind::UploadFile,
+            ),
+            (
+                "transfer-browser-upload-menu-folder",
+                TransferPathPromptKind::UploadDirectory,
+            ),
+            (
+                "transfer-browser-upload-menu-folder-contents",
+                TransferPathPromptKind::UploadDirectoryContents,
+            ),
+        ] {
+            vcx.update(|_, cx| {
+                app.update(cx, |app, cx| {
+                    app.transfer
+                        .open_browser_upload_menu(TransferBrowserUploadMenuState {
+                            x: px(20.),
+                            y: px(20.),
+                        });
+                    app.flush_transfer_panel_snapshot(cx);
+                })
+            });
+            draw_path_fixture(vcx);
+            let item = vcx
+                .debug_bounds(selector)
+                .expect("upload menu item is visible");
+            vcx.simulate_click(item.center(), Modifiers::none());
+            vcx.update(|_, cx| {
+                let transfer = &app.read(cx).transfer;
+                assert!(transfer.browser_view().upload_menu.is_none());
+                assert!(transfer.browser_view().path_menu.is_none());
+                assert!(transfer.path_prompt_is_open());
+            });
+            assert!(vcx.did_prompt_for_paths());
+            vcx.simulate_path_prompt_response(|options| {
+                assert_eq!(options.files, kind == TransferPathPromptKind::UploadFile);
+                assert_eq!(
+                    options.directories,
+                    kind != TransferPathPromptKind::UploadFile
+                );
+                assert!(options.multiple);
+                None
+            });
+            vcx.run_until_parked();
+            vcx.update(|_, cx| assert!(!app.read(cx).transfer.path_prompt_is_open()));
+        }
+    }
+
+    #[test]
+    fn upload_and_job_menus_block_file_selection_until_outside_click_dismisses() {
+        use crate::models::{
+            TransferBrowserUploadMenuState, TransferJobKind, TransferJobState, TransferJobStatus,
+        };
+        for job_menu in [false, true] {
+            let test_dir = TestConfigDir::new("nyaterm-transfer-menu-pointer");
+            let mut cx = TestAppContext::single();
+            let _test_app_cleanup = crate::test_support::TestAppCleanup::new(&cx);
+            let (app, vcx) = hosted_file_browser(&mut cx, test_dir.path());
+            let entries = (0..8)
+                .map(super::super::tests_support::browser_entry)
+                .collect::<Vec<_>>();
+            vcx.update(|_, cx| {
+                app.update(cx, |app, cx| {
+                    app.transfer
+                        .replace_browser_entries_for_test(entries.clone());
+                    app.transfer.select_browser_entry(entries[0].identity_key());
+                    app.flush_transfer_panel_snapshot(cx);
+                })
+            });
+            draw_path_fixture(vcx);
+            let row = vcx
+                .debug_bounds("transfer-browser-entry-/remote/entry-0001")
+                .unwrap();
+            let position = gpui::point(px(20.), row.top() - px(8.));
+            vcx.update(|_, cx| {
+                app.update(cx, |app, cx| {
+                    if job_menu {
+                        app.transfer.enqueue_transfer_job(TransferJobState {
+                            source_type: None,
+                            id: "menu-test".into(),
+                            session_id: Some("path-test".into()),
+                            kind: TransferJobKind::Upload {
+                                local_path: Default::default(),
+                                remote_path: "/remote/item".into(),
+                            },
+                            status: TransferJobStatus::Completed,
+                            detail: String::new(),
+                            created_at_ms: 0,
+                            display_name: String::new(),
+                            entries: Vec::new(),
+                            summary: None,
+                            progress: None,
+                            control: None,
+                            speed: Default::default(),
+                        });
+                        assert!(app.transfer.open_transfer_job_menu_at(
+                            "menu-test",
+                            position.x,
+                            position.y
+                        ));
+                    } else {
+                        app.transfer
+                            .open_browser_upload_menu(TransferBrowserUploadMenuState {
+                                x: position.x,
+                                y: position.y,
+                            });
+                    }
+                    app.flush_transfer_panel_snapshot(cx);
+                })
+            });
+            draw_path_fixture(vcx);
+            let selector = if job_menu {
+                "transfer-job-menu"
+            } else {
+                "transfer-browser-upload-menu"
+            };
+            let menu = vcx
+                .debug_bounds(selector)
+                .expect("real transfer menu is mounted");
+            // Padding is intentionally inert: clicking it must neither dismiss the
+            // menu nor select the file row that it covers.
+            let inside = gpui::point(menu.left() + px(2.), row.center().y);
+            assert!(menu.contains(&inside));
+            for button in [MouseButton::Left, MouseButton::Middle, MouseButton::Right] {
+                vcx.simulate_mouse_move(inside, None, Modifiers::none());
+                vcx.simulate_mouse_down(inside, button, Modifiers::none());
+                vcx.simulate_mouse_up(inside, button, Modifiers::none());
+            }
+            draw_path_fixture(vcx);
+            assert!(vcx.debug_bounds(selector).is_some());
+            vcx.update(|_, cx| {
+                let browser = app.read(cx).transfer.browser_view();
+                assert_eq!(
+                    browser.selected_remote_path.as_deref(),
+                    Some(entries[0].path.as_str())
+                );
+                assert!(browser.path_menu.is_none());
+                assert!(browser.drag_selection.is_none());
+            });
+            let outside = gpui::point(row.left() + px(280.), row.center().y);
+            assert!(!menu.contains(&outside));
+            vcx.simulate_click(outside, Modifiers::none());
+            draw_path_fixture(vcx);
+            assert!(vcx.debug_bounds(selector).is_none());
+            vcx.update(|_, cx| {
+                let transfer = &app.read(cx).transfer;
+                assert!(transfer.browser_view().upload_menu.is_none());
+                assert!(transfer.transfer_job_menu().is_none());
+                assert_eq!(
+                    transfer.browser_view().selected_remote_path.as_deref(),
+                    Some(entries[0].path.as_str())
+                );
+            });
+            vcx.simulate_click(outside, Modifiers::none());
+            vcx.update(|_, cx| {
+                assert_eq!(
+                    app.read(cx)
+                        .transfer
+                        .browser_view()
+                        .selected_remote_path
+                        .as_deref(),
+                    Some(entries[1].path.as_str())
+                )
+            });
+        }
     }
 
     #[test]

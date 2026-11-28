@@ -1,3 +1,4 @@
+use super::menu_input::menu_input_boundary;
 use rust_i18n::t;
 
 use gpui::{
@@ -66,70 +67,71 @@ impl NyaTermApp {
             .left_0()
             .right_0()
             .on_click(cx.listener(|this, _, _, cx| {
+                cx.stop_propagation();
                 this.close_transfer_browser_upload_menu(cx);
             }))
             .child(
-                div()
-                    .id(SharedString::from("transfer-browser-upload-menu"))
-                    .absolute()
-                    .top(px(menu_y))
-                    .left(px(menu_x))
-                    .w(px(176.))
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(palette.border))
-                    .bg(self.shell_surface_color(palette.surface))
-                    .shadow_lg()
-                    .on_click(|_, _, cx| {
-                        cx.stop_propagation();
-                    })
-                    .child(
-                        div()
-                            .max_h(px(menu_max_height))
-                            .overflow_y_scrollbar()
-                            .py_1()
-                            .flex()
-                            .flex_col()
-                            .child(upload_menu_item(
-                                palette,
-                                "transfer-browser-upload-menu-files",
-                                "icons/fe/upload.svg",
-                                t!("fileExplorer.upload"),
-                                cx.listener(|this, _, _, cx| {
-                                    this.close_transfer_browser_upload_menu(cx);
-                                    this.prompt_transfer_browser_upload_path(
-                                        TransferPathPromptKind::UploadFile,
-                                        cx,
-                                    );
-                                }),
-                            ))
-                            .child(upload_menu_item(
-                                palette,
-                                "transfer-browser-upload-menu-folder",
-                                "icons/fe/upload-folder.svg",
-                                t!("fileExplorer.uploadFolder"),
-                                cx.listener(|this, _, _, cx| {
-                                    this.close_transfer_browser_upload_menu(cx);
-                                    this.prompt_transfer_browser_upload_path(
-                                        TransferPathPromptKind::UploadDirectory,
-                                        cx,
-                                    );
-                                }),
-                            ))
-                            .child(upload_menu_item(
-                                palette,
-                                "transfer-browser-upload-menu-folder-contents",
-                                "icons/fe/upload-folder.svg",
-                                t!("fileExplorer.uploadFolderContents"),
-                                cx.listener(|this, _, _, cx| {
-                                    this.close_transfer_browser_upload_menu(cx);
-                                    this.prompt_transfer_browser_upload_path(
-                                        TransferPathPromptKind::UploadDirectoryContents,
-                                        cx,
-                                    );
-                                }),
-                            )),
-                    ),
+                menu_input_boundary(
+                    div()
+                        .id(SharedString::from("transfer-browser-upload-menu"))
+                        .debug_selector(|| "transfer-browser-upload-menu".to_string())
+                        .absolute()
+                        .top(px(menu_y))
+                        .left(px(menu_x))
+                        .w(px(176.))
+                        .rounded_md()
+                        .border_1()
+                        .border_color(rgb(palette.border))
+                        .bg(self.shell_surface_color(palette.surface))
+                        .shadow_lg(),
+                )
+                .child(
+                    div()
+                        .max_h(px(menu_max_height))
+                        .overflow_y_scrollbar()
+                        .py_1()
+                        .flex()
+                        .flex_col()
+                        .child(upload_menu_item(
+                            palette,
+                            "transfer-browser-upload-menu-files",
+                            "icons/fe/upload.svg",
+                            t!("fileExplorer.upload"),
+                            cx.listener(|this, _, _, cx| {
+                                this.close_transfer_browser_upload_menu(cx);
+                                this.prompt_transfer_browser_upload_path(
+                                    TransferPathPromptKind::UploadFile,
+                                    cx,
+                                );
+                            }),
+                        ))
+                        .child(upload_menu_item(
+                            palette,
+                            "transfer-browser-upload-menu-folder",
+                            "icons/fe/upload-folder.svg",
+                            t!("fileExplorer.uploadFolder"),
+                            cx.listener(|this, _, _, cx| {
+                                this.close_transfer_browser_upload_menu(cx);
+                                this.prompt_transfer_browser_upload_path(
+                                    TransferPathPromptKind::UploadDirectory,
+                                    cx,
+                                );
+                            }),
+                        ))
+                        .child(upload_menu_item(
+                            palette,
+                            "transfer-browser-upload-menu-folder-contents",
+                            "icons/fe/upload-folder.svg",
+                            t!("fileExplorer.uploadFolderContents"),
+                            cx.listener(|this, _, _, cx| {
+                                this.close_transfer_browser_upload_menu(cx);
+                                this.prompt_transfer_browser_upload_path(
+                                    TransferPathPromptKind::UploadDirectoryContents,
+                                    cx,
+                                );
+                            }),
+                        )),
+                ),
             )
     }
 }
@@ -142,8 +144,10 @@ fn upload_menu_item(
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let label: SharedString = label.into();
+    let id = SharedString::from(id.into());
     div()
-        .id(SharedString::from(id.into()))
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
         .h(px(30.))
         .px_2()
         .mx_1()

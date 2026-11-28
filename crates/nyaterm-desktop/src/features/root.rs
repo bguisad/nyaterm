@@ -958,7 +958,7 @@ impl NyaTermApp {
                 ))
             })
             .when(overlay.job_menu_open, |this| {
-                this.child(regional_overlay_layer(
+                this.child(full_window_overlay_layer(
                     "transfer-job-menu-input-layer",
                     self.transfer_job_menu_overlay(cx),
                 ))
@@ -982,7 +982,7 @@ impl NyaTermApp {
                 ))
             })
             .when(overlay.upload_menu_open, |this| {
-                this.child(regional_overlay_layer(
+                this.child(full_window_overlay_layer(
                     "transfer-upload-menu-input-layer",
                     self.transfer_browser_upload_menu_overlay(cx),
                 ))

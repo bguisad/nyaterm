@@ -21,6 +21,7 @@ pub(in crate::features) mod file_ops;
 mod flush;
 mod forms;
 mod helpers;
+mod menu_input;
 mod overlays;
 mod overlays_context;
 mod overlays_delete_move;
